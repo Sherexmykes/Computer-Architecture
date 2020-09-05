@@ -13,7 +13,7 @@ class CPU:
 
     def load(self):
         """Load a program into memory."""
-
+        program = sys.argv[1]
         address = 0
 
         # For now, we've just hardcoded a program:
@@ -28,17 +28,33 @@ class CPU:
             0b00000001, # HLT
         ]
 
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        if len(sys.argv) < 2:
+            print('please pass in a second filename')
+            sys.exit()
+        try:
+            address = 0
+            with open(sys.argv[1]) as files:
+                for line in files:
+                    split_line = line.split('#')
+                    command = split_line[0].strip()
+                    if command == '':
+                        continue
+                    num_command = int(command, 2)
+
+                    self.ram[address] = num_command
+                    address += 1
+        except FileNotFoundError:
+            print(f'{sys.argv[0]}{sys.argv[1]}file was not found')
+            sys.exit()
+
 
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
-            self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+                self.reg[reg_a] += self.reg[reg_b]
+        # elif op == "SUB": etc
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -70,20 +86,23 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        self.load()
+     
         while self.pc < len(self.ram):
             command = self.ram[self.pc]
             HLT = 0b00000001
 
-            if command == HLT:
+            if command == HLT:  # stops program
                 break
 
-            if command == 0b10000010:
+            if command == 0b10000010:  # registers the next line as the index inserting the line after that one as the value
                 self.ram_write(self.ram[self.pc+1], self.ram[self.pc+2])
-                self.pc += 2
 
-            if command == 0b01000111:
+            if command == 0b01000111:  # prints next line
                 print(self.ram_read(self.ram[self.pc+1]))
-                self.pc += 1
 
+            if command == 0b10100010:  # multiplies the numbers of the indexes of the next 2 lines
+                print(self.ram_read(self.ram[self.pc+1])
+                      * self.ram_read(self.ram[self.pc+2]))
+
+            self.pc += command >> 6
             self.pc += 1
