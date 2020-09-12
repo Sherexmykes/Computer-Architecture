@@ -1,65 +1,154 @@
 """CPU functionality."""
 
+
 import sys
 
+# Instructions
+LDI = 0b10000010
+CMP = 0b10100111
+JEQ = 0b01010101
+PRN = 0b01000111
+JNE = 0b01010110
+HLT = 0b00000001
+JMP = 0b01010100
+
 class CPU:
-    """Main CPU class."""
+  
 
     def __init__(self):
-        """Construct a new CPU."""
-        pass
+       
+        self.ram = [0] * 256
+        self.registers = [0] * 8
+        self.registers[7] = 0xF4
+        self.pc = 0
+        self.running = True
+        self.FL = 0b00000000
+        self.LDI = 0b10000010
+        self.CMP = 0b10100111
+        self.JEQ =  0b01010101
+        self.JNE = 0b01010110
+        self.JMP = 0b01010100
+        self.PRN =  0b01000111
+        self.HLT = 0b00000001
+        
+        #self.branch_table = {
+            #0b10000010: self.LDI,
+            #0b10100111: self.CMP,
+            #0b01010101: self.JEQ,
+            #0b01010110: self.JNE,
+            #0b01010100: self.JMP,
+            #0b01000111: self.PRN,
+            #0b00000001: self.HLT,
+           
+       # }
 
     def load(self):
-        """Load a program into memory."""
 
         address = 0
+        with open(sys.argv[1]) as files:
+            for line in files:
+                    split_line = line.split('#')
+                    command = split_line[0].strip()
+                    if command == '':
+                        continue
+                    num_command = int(command, 2)
 
-        # For now, we've just hardcoded a program:
+                    self.ram[address] = num_command
+                    address += 1
 
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+    def alu(self, instruction, register1, register2):
+        if instruction == "CMP":
+            self.FL &= 0b00000000
+            if self.registers[register1] == self.registers[register2]:
+                self.FL = 0b00000001
+            elif self.registers[register1] < self.registers[register2]:
+                self.FL = 0b00000100
+            elif self.registers[register1] > self.registers[register2]:
+                self.FL = 0b00000010
+            self.pc += 3
 
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+    def hlt(self):
+        self.running = False
 
-
-    def alu(self, op, reg_a, reg_b):
-        """ALU operations."""
-
-        if op == "ADD":
-            self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+    def jeq(self, register_number):
+        if self.FL & 1 == 1:
+            self.pc = self.registers[register_number]
         else:
-            raise Exception("Unsupported ALU operation")
+            self.pc += 2
 
-    def trace(self):
-        """
-        Handy function to print out the CPU state. You might want to call this
-        from run() if you need help debugging.
-        """
+    def jmp(self, register_number):
+        self.pc = self.registers[register_number]
 
-        print(f"TRACE: %02X | %02X %02X %02X |" % (
-            self.pc,
-            #self.fl,
-            #self.ie,
-            self.ram_read(self.pc),
-            self.ram_read(self.pc + 1),
-            self.ram_read(self.pc + 2)
-        ), end='')
+    def jne(self, register_number):
+        if self.FL & 1 == 0:
+            self.pc = self.registers[register_number]
+        else:
+            self.pc += 2
 
-        for i in range(8):
-            print(" %02X" % self.reg[i], end='')
+    def ldi(self, register_number, value):
+        self.registers[register_number] = value
+        self.pc += 3
 
-        print()
+    def prn(self, register_number):
+        print(self.registers[register_number])
+        self.pc += 2
+
+    def load(self):
+        if len(sys.argv) < 2:
+            print("Please pass in a second file name: python3 ls8.py second_filename.py")
+            sys.exit()
+        file_name = sys.argv[1]
+        try:
+            address = 0
+            with open(file_name) as file:
+                for line in file:
+                    split_line = line.split('#')[0]
+                    command = split_line.strip()
+
+                    if command == '':
+                        continue
+
+                    instruction = int(command, 2)
+                    self.ram[address] = instruction
+                    address += 1
+        except FileNotFoundError:
+            print(f'{sys.argv[0]}: {sys.argv[1]} file was not found')
+            sys.exit()
 
     def run(self):
-        """Run the CPU."""
-        pass
+        self.load()
+        while self.running:
+            instruction = self.ram[self.pc]
+
+            if instruction == CMP:
+                register1 = self.ram[self.pc + 1]
+                register2 = self.ram[self.pc + 2]
+                self.alu("CMP", register1, register2)
+
+            elif instruction == HLT:
+                self.hlt()
+
+            elif instruction == JEQ:
+                register_number = self.ram[self.pc + 1]
+                self.jeq(register_number)
+
+            elif instruction == JMP:
+                register_number = self.ram[self.pc + 1]
+                self.jmp(register_number)
+
+            elif instruction == JNE:
+                register_number = self.ram[self.pc + 1]
+                self.jne(register_number)
+
+            elif instruction == LDI:
+                register_number = self.ram[self.pc + 1]
+                value = self.ram[self.pc + 2]
+                self.ldi(register_number, value)
+
+            elif instruction == PRN:
+                register_number = self.ram[self.pc + 1]
+                self.prn(register_number)
+
+            else:
+                print(f"Instruction number {self.pc} not recognized!")
+                self.pc += 1
